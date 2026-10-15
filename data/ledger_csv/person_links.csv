@@ -1,0 +1,8 @@
+person_a,person_b,rel_type,detail
+P01,P02,RELATIVE_OF,niece
+P01,P03,RELATIVE_OF,brother-in-law
+P01,P06,RELATIVE_OF,son-in-law
+P01,P04,RELATIVE_OF,cousin
+P01,P07,FRIEND_OF,school friend
+P01,P33,FRIEND_OF,neighbour
+P08,P32,RELATIVE_OF,sister

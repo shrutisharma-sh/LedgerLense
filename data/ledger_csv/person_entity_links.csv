@@ -1,0 +1,4 @@
+person_id,entity_id,rel_type
+P31,E02,CEO_OF
+P32,E04,DIRECTOR_OF
+P07,E05,DIRECTOR_OF

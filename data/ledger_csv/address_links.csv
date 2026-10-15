@@ -1,0 +1,6 @@
+owner_label,owner_id,address_id,rel_type
+Person,P01,A01,LIVES_AT
+Person,P31,A01,LIVES_AT
+Company,E04,A02,REGISTERED_AT
+Trust,E05,A02,REGISTERED_AT
+Vendor,E02,A03,REGISTERED_AT
