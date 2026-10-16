@@ -131,5 +131,61 @@ g.query("""UNWIND $rows AS r
 MATCH (d:Decision {decision_id: r.decision_id}), (v {entity_id: r.subject_id})
 CREATE (d)-[:ABOUT]->(v)""", {"rows": [r for r in decs if r["subject_label"] == "Vendor"]})
 
+g.query("CREATE INDEX FOR (b:Bill) ON (b.bill_id)")
+g.query("CREATE INDEX FOR (t:Transfer) ON (t.transfer_id)")
+g.query("CREATE INDEX FOR (c:Complaint) ON (c.complaint_id)")
+
+# bills
+bills = read("bills")
+for r in bills:
+    for k in ("base_krw", "levy_krw", "paid_krw"):
+        r[k] = int(r[k])
+g.query("""UNWIND $rows AS r
+CREATE (:Bill {bill_id: r.bill_id, month: r.month, base_krw: r.base_krw,
+               levy_krw: r.levy_krw, status: r.status, paid_krw: r.paid_krw})""",
+        {"rows": bills})
+g.query("""UNWIND $rows AS r
+MATCH (f:Flat {flat_id: r.flat_id}), (b:Bill {bill_id: r.bill_id})
+CREATE (f)-[:HAS_BILL]->(b)""", {"rows": bills})
+g.query("""UNWIND $rows AS r
+MATCH (b:Bill {bill_id: r.bill_id}), (d:Decision {decision_id: r.decision_id})
+CREATE (b)-[:WAIVED_BY]->(d)""", {"rows": [r for r in bills if r["decision_id"]]})
+
+# transfers
+transfers = read("transfers")
+for r in transfers:
+    r["amount_krw"] = int(r["amount_krw"])
+g.query("""UNWIND $rows AS r
+CREATE (:Transfer {transfer_id: r.transfer_id, date: r.date,
+                   amount_krw: r.amount_krw, purpose: r.purpose})""",
+        {"rows": transfers})
+g.query("""UNWIND $rows AS r
+MATCH (a {entity_id: r.from_id}), (t:Transfer {transfer_id: r.transfer_id})
+CREATE (a)-[:SENT]->(t)""", {"rows": transfers})
+g.query("""UNWIND $rows AS r
+MATCH (t:Transfer {transfer_id: r.transfer_id}), (b {entity_id: r.to_id})
+CREATE (t)-[:RECEIVED_BY]->(b)""", {"rows": transfers})
+g.query("""UNWIND $rows AS r
+MATCH (t:Transfer {transfer_id: r.transfer_id}), (l:Ledger {ledger_id: r.ledger_id})
+CREATE (t)-[:RECORDED_IN]->(l)""", {"rows": [r for r in transfers if r["ledger_id"]]})
+g.query("""UNWIND $rows AS r
+MATCH (t:Transfer {transfer_id: r.transfer_id}), (d:Decision {decision_id: r.decision_id})
+CREATE (t)-[:APPROVED_BY]->(d)""", {"rows": [r for r in transfers if r["decision_id"]]})
+
+# complaints
+complaints = read("complaints")
+g.query("""UNWIND $rows AS r
+CREATE (:Complaint {complaint_id: r.complaint_id, issue: r.issue, block: r.block,
+                    opened: r.opened, closed: r.closed})""", {"rows": complaints})
+g.query("""UNWIND $rows AS r
+MATCH (f:Flat {flat_id: r.flat_id}), (c:Complaint {complaint_id: r.complaint_id})
+CREATE (f)-[:FILED]->(c)""", {"rows": complaints})
+g.query("""UNWIND $rows AS r
+MATCH (c:Complaint {complaint_id: r.complaint_id}), (v {entity_id: r.vendor_id})
+CREATE (c)-[:HANDLED_BY]->(v)""", {"rows": complaints})
+g.query("""UNWIND $rows AS r
+MATCH (c:Complaint {complaint_id: r.complaint_id}), (p:Complaint {complaint_id: r.reopened_of})
+CREATE (c)-[:REOPENS]->(p)""", {"rows": [r for r in complaints if r["reopened_of"]]})
+
 print("nodes:", g.query("MATCH (n) RETURN count(n)").result_set)
 print("edges:", g.query("MATCH ()-[e]->() RETURN count(e)").result_set)
