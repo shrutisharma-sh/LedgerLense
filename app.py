@@ -25,7 +25,7 @@ def table(rows, headers):
         st.info("No matching records found.")
 
 
-st.title("🔎 Civic Guard")
+st.title("🔎 Leadger Lense")
 st.caption("AI-powered civic investigation | Synthetic data. Risk signals, not accusations.")
 
 try:

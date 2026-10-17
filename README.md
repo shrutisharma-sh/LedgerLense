@@ -45,7 +45,7 @@ Requirements: Docker, Python 3.10+, a free Groq API key.
    .venv\Scripts\Activate.ps1
    pip install -r requirements.txt
 ```
-3. Set your Groq key (PowerShell). The key is never stored in the repo:
+3. Set your Groq key (PowerShell). The key is not stored in the repo:
 ```
    $env:GROQ_API_KEY="your-key"
 ```
