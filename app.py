@@ -1,7 +1,7 @@
 import streamlit as st
 from falkordb import FalkorDB
 
-st.set_page_config(page_title="Civic Guard", page_icon="🔎", layout="wide")
+st.set_page_config(page_title="LeadgerLense", page_icon="🔎", layout="wide")
 
 @st.cache_resource
 def get_graph():
