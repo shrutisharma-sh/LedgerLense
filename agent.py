@@ -4,19 +4,21 @@ from falkordb import FalkorDB
 
 g = FalkorDB(host="localhost", port=6379).select_graph("ledgerlens")
 client = Groq()
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-120b"
 
 
 TOOLS_CYPHER = {
-    "hidden_beneficiaries": """
+        "hidden_beneficiaries": """
         MATCH (k:Person {name:'Kailash Somani'})-[:RELATIVE_OF|FRIEND_OF*1..3]-(p:Person)
               -[:OWNS]->(f:Flat)-[:HAS_BILL]->(b:Bill)
-        WHERE b.status <> 'paid'
-        RETURN p.name AS resident, f.flat_id AS flat, count(DISTINCT b) AS unpaid_or_waived_bills
+        WHERE toInteger(b.paid_krw) = 0
+        WITH p, f, count(DISTINCT b) AS unpaid_or_waived_bills
+        WHERE unpaid_or_waived_bills >= 12
+        RETURN p.name AS resident, f.flat_id AS flat, unpaid_or_waived_bills
         ORDER BY unpaid_or_waived_bills DESC""",
     "levy_burden": """
         MATCH (f:Flat)-[:HAS_BILL]->(b:Bill)
-        WHERE b.levy_krw > 0 AND b.status = 'paid'
+        WHERE toInteger(b.levy_krw) > 0 AND toInteger(b.paid_krw) > 0
         RETURN count(DISTINCT f) AS paying_flats, sum(toInteger(b.levy_krw)) AS levy_collected""",
     "repeat_repairs": """
         MATCH (c:Complaint)-[:HANDLED_BY]->(v:Vendor)
@@ -33,7 +35,7 @@ TOOLS_CYPHER = {
                sum(toInteger(t.amount_krw)) AS total""",
     "reserve_to_trust_path": """
         MATCH (r:ReserveFund), (t:Trust)
-        MATCH p = shortestPath((r)-[:SENT|RECEIVED_BY*]->(t))
+        WITH shortestPath((r)-[:SENT|RECEIVED_BY*]->(t)) AS p
         RETURN [n IN nodes(p) | coalesce(n.name, n.transfer_id)] AS path""",
     "shared_addresses": """
         MATCH (a)-[:LIVES_AT|REGISTERED_AT]->(ad:Address)<-[:LIVES_AT|REGISTERED_AT]-(b)
@@ -60,37 +62,31 @@ SYSTEM = (
     "Investigate using the tools (call several). Report 'risk signals worth review', never accuse "
     "anyone of fraud. Only flag what the data shows; do not flag people who merely have links. "
     "Data is synthetic. Keep the answer short: signal, evidence, suggested next step."
+    " Do not speculate about motives. Use neutral wording like 'worth review'."
 )
 
 
 def run_agent(question):
-    log = []  
-    msgs = [{"role": "system", "content": SYSTEM},
-            {"role": "user", "content": question}]
-    for _ in range(8):
-        r = client.chat.completions.create(model=MODEL, messages=msgs,
-                                           tools=TOOLS, tool_choice="auto",
-                                           max_tokens=1500)
-        m = r.choices[0].message
-        if not m.tool_calls:
-            return m.content, log
-        msgs.append({"role": "assistant", "content": m.content or "",
-                     "tool_calls": [{"id": t.id, "type": "function",
-                                     "function": {"name": t.function.name,
-                                                  "arguments": t.function.arguments or "{}"}}
-                                    for t in m.tool_calls]})
-        for t in m.tool_calls:
-            cy = TOOLS_CYPHER.get(t.function.name)
-            if not cy:
-                msgs.append({"role": "tool", "tool_call_id": t.id, "content": "unknown tool"})
-                continue
+    log = []
+    evidence = {}
+    for name, cy in TOOLS_CYPHER.items():
+        try:
             res = g.query(cy)
             cols = [h[1] for h in res.header]
             rows = [dict(zip(cols, row)) for row in res.result_set]
-            log.append({"tool": t.function.name, "cypher": cy, "rows": rows})
-            msgs.append({"role": "tool", "tool_call_id": t.id,
-                         "content": json.dumps(rows, default=str)})
-    return "Stopped after too many steps.", log
+        except Exception as e:
+            rows = [{"error": str(e)}]
+        log.append({"tool": name, "cypher": cy, "rows": rows})
+        evidence[name] = rows
+    msgs = [
+        {"role": "system", "content": SYSTEM + " Amounts are in currency units; don't assume a currency symbol. "
+         "Cover: hidden beneficiaries, levy burden, repeat repairs, secret transfers and the "
+         "reserve-to-trust path, shared addresses, decisions without meeting or quorum."},
+        {"role": "user", "content": question + "\n\nEvidence from graph queries:\n"
+         + json.dumps(evidence, default=str)},
+    ]
+    r = client.chat.completions.create(model=MODEL, messages=msgs, max_tokens=1500)
+    return r.choices[0].message.content, log
 
 
 if __name__ == "__main__":
