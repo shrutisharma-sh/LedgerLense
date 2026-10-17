@@ -1,7 +1,7 @@
 import streamlit as st
 from falkordb import FalkorDB
 
-st.set_page_config(page_title="LeadgerLense", page_icon="🔎", layout="wide")
+st.set_page_config(page_title="LedgerLense", page_icon="🔎", layout="wide")
 
 @st.cache_resource
 def get_graph():
@@ -25,7 +25,7 @@ def table(rows, headers):
         st.info("No matching records found.")
 
 
-st.title("🔎 Leadger Lense")
+st.title("🔎 Ledger Lense")
 st.caption("AI-powered civic investigation | Synthetic data. Risk signals, not accusations.")
 
 try:
