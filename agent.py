@@ -63,6 +63,7 @@ SYSTEM = (
     "anyone of fraud. Only flag what the data shows; do not flag people who merely have links. "
     "Data is synthetic. Keep the answer short: signal, evidence, suggested next step."
     " Do not speculate about motives. Use neutral wording like 'worth review'."
+    " Format the answer as short bullet points grouped by area, not a table. Never use HTML tags like <br>."
 )
 
 
